@@ -88,7 +88,7 @@ export function make(root: AnalyseCtrl, playableDepth: () => number): PracticeCt
     );
   }
   function nodeBestUci(node: Tree.Node): Uci | undefined {
-    return (node.tbhit && node.tbhit.best) || (node.ceval && node.ceval.pvs[0].moves[0]);
+    return node.ceval && node.ceval.pvs[0].moves[0];
   }
 
   function makeComment(prev: Tree.Node, node: Tree.Node, path: Tree.Path): Comment {
@@ -142,7 +142,7 @@ export function make(root: AnalyseCtrl, playableDepth: () => number): PracticeCt
       comment(null);
       return root.redraw();
     }
-    if (tablebaseGuaranteed(variant, node.fen) && !defined(node.tbhit)) return;
+
     ensureCevalRunning();
     if (isMyTurn()) {
       const h = hinting();
