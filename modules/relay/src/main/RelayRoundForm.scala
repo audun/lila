@@ -6,7 +6,7 @@ import play.api.data.Forms.*
 import scala.util.Try
 import scala.util.chaining.*
 
-import lila.common.Form.{ cleanNonEmptyText, cleanText, into, given }
+import lila.common.Form.{ cleanText, into }
 import lila.game.Game
 import lila.security.Granter
 import lila.study.Study
@@ -15,16 +15,17 @@ import lila.user.User
 final class RelayRoundForm:
 
   import RelayRoundForm.*
-  import lila.common.Form.ISODateTimeOrTimestamp
+  import lila.common.Form.ISOInstantOrTimestamp
 
   val roundMapping =
     mapping(
-      "name" -> cleanText(minLength = 3, maxLength = 80).into[RelayRoundName],
+      "name"    -> cleanText(minLength = 3, maxLength = 80).into[RelayRoundName],
+      "caption" -> optional(cleanText(minLength = 3, maxLength = 80).into[RelayRound.Caption]),
       "syncUrl" -> optional {
         cleanText(minLength = 8, maxLength = 600).verifying("Invalid source", validSource)
       },
       "syncUrlRound" -> optional(number(min = 1, max = 999)),
-      "startsAt"     -> optional(ISODateTimeOrTimestamp.isoDateTimeOrTimestamp),
+      "startsAt"     -> optional(ISOInstantOrTimestamp.mapping),
       "throttle"     -> optional(number(min = 2, max = 60))
     )(Data.apply)(unapply)
       .verifying("This source requires a round number. See the new form field below.", !_.roundMissing)
@@ -36,7 +37,11 @@ final class RelayRoundForm:
         _ => trs.rounds.sizeIs < RelayTour.maxRelays
       )
   }.fill(
-    Data(name = RelayRoundName(s"Round ${trs.rounds.size + 1}"), syncUrlRound = Some(trs.rounds.size + 1))
+    Data(
+      name = RelayRoundName(s"Round ${trs.rounds.size + 1}"),
+      caption = none,
+      syncUrlRound = Some(trs.rounds.size + 1)
+    )
   )
 
   def edit(r: RelayRound) = Form(roundMapping) fill Data.make(r)
@@ -53,14 +58,14 @@ object RelayRoundForm:
     cleanUrl(source).isDefined || toGameIds(source).isDefined
 
   private def cleanUrl(source: String): Option[String] =
-    for {
+    for
       url <- Try(URL.parse(source)).toOption
       if url.scheme == "http" || url.scheme == "https"
       host <- Option(url.host).map(_.toHostString)
       // prevent common mistakes (not for security)
       if !blocklist.exists(subdomain(host, _))
       if !subdomain(host, "chess.com") || url.toString.startsWith("https://api.chess.com/pub")
-    } yield url.toString.stripSuffix("/")
+    yield url.toString.stripSuffix("/")
 
   private def subdomain(host: String, domain: String) = s".$host".endsWith(s".$domain")
 
@@ -86,9 +91,10 @@ object RelayRoundForm:
 
   case class Data(
       name: RelayRoundName,
+      caption: Option[RelayRound.Caption],
       syncUrl: Option[String] = None,
       syncUrlRound: Option[Int] = None,
-      startsAt: Option[DateTime] = None,
+      startsAt: Option[Instant] = None,
       throttle: Option[Int] = None
   ):
 
@@ -101,6 +107,7 @@ object RelayRoundForm:
     def update(relay: RelayRound, user: User) =
       relay.copy(
         name = name,
+        caption = caption,
         sync = makeSync(user) pipe { sync =>
           if (relay.sync.playing) sync.play else sync
         },
@@ -126,8 +133,9 @@ object RelayRoundForm:
         _id = RelayRound.makeId,
         tourId = tour.id,
         name = name,
+        caption = caption,
         sync = makeSync(user),
-        createdAt = nowDate,
+        createdAt = nowInstant,
         finished = false,
         startsAt = startsAt,
         startedAt = none
@@ -138,6 +146,7 @@ object RelayRoundForm:
     def make(relay: RelayRound) =
       Data(
         name = relay.name,
+        caption = relay.caption,
         syncUrl = relay.sync.upstream map {
           case url: RelayRound.Sync.UpstreamUrl => url.withRound.url
           case RelayRound.Sync.UpstreamIds(ids) => ids mkString " "

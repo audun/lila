@@ -25,7 +25,6 @@ import com.vladsch.flexmark.util.data.{ DataHolder, MutableDataHolder, MutableDa
 import com.vladsch.flexmark.util.html.MutableAttributes
 import com.vladsch.flexmark.ast.{ AutoLink, Image, Link, LinkNode }
 import io.mola.galimatias.URL
-import scala.collection.JavaConverters
 import java.util.Arrays
 import scala.jdk.CollectionConverters.*
 import scala.util.Try
@@ -44,17 +43,18 @@ final class MarkdownRender(
     code: Boolean = false,
     gameExpand: Option[MarkdownRender.GameExpand] = None
 ):
-  import MarkdownRender.Key
 
-  private val extensions = new java.util.ArrayList[com.vladsch.flexmark.util.misc.Extension]()
+  private val extensions = java.util.ArrayList[Extension]()
   if (table) extensions.add(TablesExtension.create())
   if (strikeThrough) extensions.add(StrikethroughExtension.create())
-  if (autoLink) extensions.add(AutolinkExtension.create())
+  if (autoLink)
+    extensions.add(AutolinkExtension.create())
+    extensions.add(MarkdownRender.WhitelistedImage.extension)
   extensions.add(
-    gameExpand.fold[Extension](MarkdownRender.LilaLinkExtension) { new MarkdownRender.GameEmbedExtension(_) }
+    gameExpand.fold[Extension](MarkdownRender.LilaLinkExtension) { MarkdownRender.GameEmbedExtension(_) }
   )
 
-  private val options = new MutableDataSet()
+  private val options = MutableDataSet()
     .set(Parser.EXTENSIONS, extensions)
     .set(HtmlRenderer.ESCAPE_HTML, Boolean box true)
     .set(HtmlRenderer.SOFT_BREAK, "<br>")
@@ -85,7 +85,7 @@ final class MarkdownRender(
     tooManyUnderscoreRegex.replaceAllIn(text.value, "_" * 3)
   )
 
-  def apply(key: Key)(text: Markdown): Html = Html {
+  def apply(key: MarkdownRender.Key)(text: Markdown): Html = Html {
     Chronometer
       .sync {
         try renderer.render(parser.parse(mentionsToLinks(preventStackOverflow(text)).value))
@@ -107,24 +107,19 @@ object MarkdownRender:
 
   private val rel = "nofollow noopener noreferrer"
 
-  private object WhitelistedImageExtension extends HtmlRenderer.HtmlRendererExtension:
-    override def rendererOptions(options: MutableDataHolder) = ()
-    override def extend(htmlRendererBuilder: HtmlRenderer.Builder, rendererType: String) =
-      htmlRendererBuilder
-        .nodeRendererFactory(new NodeRendererFactory {
-          override def apply(options: DataHolder) = WhitelistedImageNodeRenderer
-        })
-        .unit
-  private object WhitelistedImageNodeRenderer extends NodeRenderer:
-    override def getNodeRenderingHandlers() =
-      new java.util.HashSet(
-        Arrays.asList(
-          new NodeRenderingHandler(
-            classOf[Image],
-            render _
-          )
-        )
-      )
+  private object WhitelistedImage:
+
+    val extension = new HtmlRenderer.HtmlRendererExtension:
+      override def rendererOptions(options: MutableDataHolder) = ()
+      override def extend(htmlRendererBuilder: HtmlRenderer.Builder, rendererType: String) =
+        htmlRendererBuilder
+          .nodeRendererFactory(new NodeRendererFactory {
+            override def apply(options: DataHolder) = renderer
+          })
+
+    private val renderer = new NodeRenderer:
+      override def getNodeRenderingHandlers() =
+        java.util.HashSet(Arrays.asList(NodeRenderingHandler(classOf[Image], render _)))
 
     private val whitelist =
       List(
@@ -144,13 +139,12 @@ object MarkdownRender:
         "xkcd.com",
         "lichess1.org"
       )
-    private def whitelistedSrc(src: String): Option[String] =
-      for {
-        url <- Try(URL.parse(src)).toOption
-        if url.scheme == "http" || url.scheme == "https"
-        host <- Option(url.host).map(_.toHostString)
-        if whitelist.exists(h => host == h || host.endsWith(s".$h"))
-      } yield url.toString
+    private def whitelistedSrc(src: String): Option[String] = for
+      url <- Try(URL.parse(src)).toOption
+      if url.scheme == "http" || url.scheme == "https"
+      host <- Option(url.host).map(_.toHostString)
+      if whitelist.exists(h => host == h || host.endsWith(s".$h"))
+    yield url.toString
 
     private def render(node: Image, context: NodeRendererContext, html: HtmlWriter): Unit =
       // Based on implementation in CoreNodeRenderer.

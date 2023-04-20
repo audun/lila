@@ -10,7 +10,7 @@ import lila.common.LightUser
 
 final class JsonView(rematches: Rematches):
 
-  import JsonView.{ *, given }
+  import JsonView.given
 
   def base(game: Game, initialFen: Option[Fen.Epd]) =
     Json
@@ -49,6 +49,7 @@ final class JsonView(rematches: Rematches):
         "color"    -> pov.color.name,
         "lastMove" -> (pov.game.lastMoveKeys | ""),
         "source"   -> pov.game.source,
+        "status"   -> pov.game.status,
         "variant" -> Json.obj(
           "key"  -> pov.game.variant.key,
           "name" -> pov.game.variant.name
@@ -71,6 +72,7 @@ final class JsonView(rematches: Rematches):
       .add("tournamentId" -> pov.game.tournamentId)
       .add("swissId" -> pov.game.swissId)
       .add("orientation" -> pov.game.variant.racingKings.option(chess.White))
+      .add("winner" -> pov.game.winnerColor)
 
   def player(p: Player, user: Option[LightUser]) =
     Json
@@ -118,10 +120,8 @@ object JsonView:
 
   given OWrites[Crazyhouse.Pocket] = OWrites { v =>
     JsObject(
-      Crazyhouse.storableRoles.flatMap { role =>
-        Some(v.roles.count(role ==)).filter(0 <).map { count =>
-          role.name -> JsNumber(count)
-        }
+      v.values.collect {
+        case (role, nb) if nb > 0 => role.name -> JsNumber(nb)
       }
     )
   }

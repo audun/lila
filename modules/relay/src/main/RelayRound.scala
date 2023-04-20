@@ -2,22 +2,22 @@ package lila.relay
 
 import ornicar.scalalib.ThreadLocalRandom
 
-import lila.study.{ Chapter, Study }
-import lila.user.User
+import lila.study.Study
 
 case class RelayRound(
     _id: RelayRoundId,
     tourId: RelayTour.Id,
     name: RelayRoundName,
+    caption: Option[RelayRound.Caption],
     sync: RelayRound.Sync,
     /* When it's planned to start */
-    startsAt: Option[DateTime],
+    startsAt: Option[Instant],
     /* When it actually starts */
-    startedAt: Option[DateTime],
+    startedAt: Option[Instant],
     /* at least it *looks* finished... but maybe it's not
      * sync.nextAt is used for actually synchronising */
     finished: Boolean,
-    createdAt: DateTime
+    createdAt: Instant
 ):
 
   inline def id = _id
@@ -42,17 +42,17 @@ case class RelayRound(
 
   def ensureStarted =
     copy(
-      startedAt = startedAt orElse nowDate.some
+      startedAt = startedAt orElse nowInstant.some
     )
 
   def hasStarted        = startedAt.isDefined
-  def hasStartedEarly   = hasStarted && startsAt.exists(_ isAfter nowDate)
-  def shouldHaveStarted = hasStarted || startsAt.exists(_ isBefore nowDate)
+  def hasStartedEarly   = hasStarted && startsAt.exists(_ isAfter nowInstant)
+  def shouldHaveStarted = hasStarted || startsAt.exists(_ isBefore nowInstant)
 
   def shouldGiveUp =
     !hasStarted && (startsAt match {
-      case Some(at) => at.isBefore(nowDate minusHours 3)
-      case None     => createdAt.isBefore(nowDate minusDays 1)
+      case Some(at) => at.isBefore(nowInstant minusHours 3)
+      case None     => createdAt.isBefore(nowInstant minusDays 1)
     })
 
   def withSync(f: RelayRound.Sync => RelayRound.Sync) = copy(sync = f(sync))
@@ -65,10 +65,13 @@ object RelayRound:
 
   def makeId = RelayRoundId(ThreadLocalRandom nextString 8)
 
+  opaque type Caption = String
+  object Caption extends OpaqueString[Caption]
+
   case class Sync(
       upstream: Option[Sync.Upstream], // if empty, needs a client to push PGN
-      until: Option[DateTime],         // sync until then; resets on move
-      nextAt: Option[DateTime],        // when to run next sync
+      until: Option[Instant],          // sync until then; resets on move
+      nextAt: Option[Instant],         // when to run next sync
       delay: Option[Int],              // override time between two sync (rare)
       log: SyncLog
   ):
@@ -76,13 +79,13 @@ object RelayRound:
     def hasUpstream = upstream.isDefined
 
     def renew =
-      if (hasUpstream) copy(until = nowDate.plusHours(1).some)
+      if (hasUpstream) copy(until = nowInstant.plusHours(1).some)
       else pause
 
-    def ongoing = until ?? nowDate.isBefore
+    def ongoing = until ?? nowInstant.isBefore
 
     def play =
-      if (hasUpstream) renew.copy(nextAt = nextAt orElse nowDate.plusSeconds(3).some)
+      if (hasUpstream) renew.copy(nextAt = nextAt orElse nowInstant.plusSeconds(3).some)
       else pause
 
     def pause =
@@ -93,7 +96,7 @@ object RelayRound:
 
     def seconds: Option[Int] =
       until map { u =>
-        (u.getSeconds - nowSeconds).toInt
+        (u.toSeconds - nowSeconds).toInt
       } filter (0 <)
 
     def playing = nextAt.isDefined

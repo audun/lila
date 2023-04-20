@@ -3,7 +3,7 @@ package views.html.relay
 import controllers.routes
 import play.api.data.Form
 
-import lila.api.{ Context, given }
+import lila.api.Context
 import lila.app.templating.Environment.{ given, * }
 import lila.app.ui.ScalatagsTemplate.{ *, given }
 import lila.relay.RelayRound.Sync.UpstreamUrl.LccRegex
@@ -72,7 +72,12 @@ object roundForm:
         )
       ),
       form3.globalError(form),
-      form3.group(form("name"), roundName())(form3.input(_)(autofocus)),
+      form3.split(
+        form3.group(form("name"), roundName(), half = true)(form3.input(_)(autofocus)),
+        t.official option form3.group(form("caption"), "Homepage caption", half = true)(
+          form3.input(_)
+        )
+      ),
       form3.group(
         form("syncUrl"),
         sourceUrlOrGameIds(),

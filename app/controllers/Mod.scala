@@ -5,17 +5,16 @@ import play.api.data.*
 import play.api.data.Forms.*
 import play.api.libs.json.Json
 import play.api.mvc.*
-import scala.annotation.nowarn
 import views.*
 
 import lila.api.{ BodyContext, Context }
 import lila.app.{ given, * }
-import lila.chat.Chat
 import lila.common.{ EmailAddress, HTTPRequest, IpAddress }
 import lila.mod.UserSearch
 import lila.report.{ Mod as AsMod, Suspect }
 import lila.security.{ FingerHash, Granter, Permission }
-import lila.user.{ Holder, Title, User as UserModel }
+import lila.user.{ Holder, User as UserModel }
+import scala.annotation.nowarn
 
 final class Mod(
     env: Env,
@@ -382,7 +381,7 @@ final class Mod(
     }
 
   def queues(period: String) =
-    Secure(_.GamifyView) { implicit ctx => me =>
+    Secure(_.GamifyView) { implicit ctx => _ =>
       env.mod.queueStats(period) map { stats =>
         Ok(html.mod.queueStats(stats))
       }
@@ -390,17 +389,17 @@ final class Mod(
 
   def search =
     SecureBody(_.UserSearch) { implicit ctx => me =>
-      given play.api.mvc.Request[?] = ctx.body
-      val f                         = UserSearch.form
-      f.bindFromRequest()
+      given Request[?] = ctx.body
+      UserSearch.form
+        .bindFromRequest()
         .fold(
           err => BadRequest(html.mod.search(me, err, Nil)).toFuccess,
-          query => env.mod.search(query) map { html.mod.search(me, f.fill(query), _) }
+          query => env.mod.search(query) map { html.mod.search(me, UserSearch.form.fill(query), _) }
         )
     }
 
   def gdprErase(username: UserStr) =
-    Secure(_.CloseAccount) { _ => me =>
+    Secure(_.GdprErase) { _ => me =>
       val res = Redirect(routes.User.show(username.value))
       env.api.accountClosure.closeThenErase(username, me) map {
         case Right(msg) => res flashSuccess msg
@@ -416,12 +415,12 @@ final class Mod(
   def print(fh: String) =
     SecureBody(_.ViewPrintNoIP) { implicit ctx => me =>
       val hash = FingerHash(fh)
-      for {
+      for
         uids       <- env.security.api recentUserIdsByFingerHash hash
         users      <- env.user.repo usersFromSecondary uids.reverse
         withEmails <- env.user.repo withEmails users
         uas        <- env.security.api.printUas(hash)
-      } yield Ok(html.mod.search.print(me, hash, withEmails, uas, env.security.printBan blocks hash))
+      yield Ok(html.mod.search.print(me, hash, withEmails, uas, env.security.printBan blocks hash))
     }
 
   def printBan(v: Boolean, fh: String) =
@@ -437,12 +436,12 @@ final class Mod(
     SecureBody(_.ViewPrintNoIP) { implicit ctx => me =>
       given lila.mod.IpRender.RenderIp = env.mod.ipRender(me)
       env.mod.ipRender.decrypt(ip) ?? { address =>
-        for {
+        for
           uids       <- env.security.api recentUserIdsByIp address
           users      <- env.user.repo usersFromSecondary uids.reverse
           withEmails <- env.user.repo withEmails users
           uas        <- env.security.api.ipUas(address)
-        } yield Ok(html.mod.search.ip(me, address, withEmails, uas, env.security.firewall blocksIp address))
+        yield Ok(html.mod.search.ip(me, address, withEmails, uas, env.security.firewall blocksIp address))
       }
     }
 
@@ -479,7 +478,7 @@ final class Mod(
 
   def savePermissions(username: UserStr) =
     SecureBody(_.ChangePermission) { implicit ctx => me =>
-      given play.api.mvc.Request[?] = ctx.body
+      given Request[?] = ctx.body
       import lila.security.Permission
       OptionFuResult(env.user.repo byId username) { user =>
         Form(
@@ -543,18 +542,18 @@ final class Mod(
   def presets(group: String) =
     Secure(_.Presets) { implicit ctx => _ =>
       env.mod.presets.get(group).fold(notFound) { setting =>
-        Ok(html.mod.presets(group, setting, setting.form)).toFuccess
+        Ok(html.mod.presets(group, setting.form)).toFuccess
       }
     }
 
   def presetsUpdate(group: String) =
     SecureBody(_.Presets) { implicit ctx => _ =>
-      given play.api.mvc.Request[?] = ctx.body
+      given Request[?] = ctx.body
       env.mod.presets.get(group).fold(notFound) { setting =>
         setting.form
           .bindFromRequest()
           .fold(
-            err => BadRequest(html.mod.presets(group, setting, err)).toFuccess,
+            err => BadRequest(html.mod.presets(group, err)).toFuccess,
             v => setting.setString(v.toString) inject Redirect(routes.Mod.presets(group)).flashSuccess
           )
       }
@@ -568,7 +567,7 @@ final class Mod(
     }
 
   def apiUserLog(username: UserStr) =
-    SecureScoped(_.ModLog) { implicit req => me =>
+    SecureScoped(_.ModLog) { _ => me =>
       import lila.common.Json.given
       env.user.repo byId username flatMapz { user =>
         for
@@ -616,6 +615,7 @@ final class Mod(
 
   private def actionResult(
       username: UserStr
-  )(ctx: Context)(user: Holder)(res: Any) =
-    if (HTTPRequest isSynchronousHttp ctx.req) fuccess(redirect(username))
+  )(ctx: Context)(@nowarn user: Holder)(@nowarn res: Any) =
+    if HTTPRequest.isSynchronousHttp(ctx.req)
+    then fuccess(redirect(username))
     else userC.renderModZoneActions(username)(ctx)

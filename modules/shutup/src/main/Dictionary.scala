@@ -243,6 +243,8 @@ ching(ue|a)
 chupame
 cobarde
 est[úu]pid[ao]
+hdp
+hijo de put\w*
 idiota
 imbecil
 madre
@@ -255,6 +257,7 @@ pendejo
 put[ao]
 trampa
 trampos[ao]
+tu eres put\w*
 verga
 """)
 
@@ -313,20 +316,21 @@ wichser
 am[iı]na (koyay[iı]m|koy?dum)
 amc[iı]k
 anan[iı]n am[iı]
-ann?an[iı](zi)? s[ii̇]k[eii̇]y[ii̇]m
+((ann?an[iı](z[iı])?)|(kar[iı]n[iı](z[iı])?)|(avrad[iı]n[iı](z[iı])?)) (s[ii̇]k[ei](yim|cem|rim|m))
 aptal
 beyinsiz
 bok yedin
 ezik
 gerizekal[iı]
+göt
 ibne
 ka[sş]ar
-oç
-orospu( ([çc]o[çc]u[ğg]?u|evlad[ıi]))?
+oç+
+[ou]r[ou]s[pb]u( ([çc]o[çc]u[ğg]?u|evlad[ıi]))?
 piç(lik)?
 pu[sş]t
 salak
-s[ii̇]kecem
+s[ii̇]k[ei](yim|cem|rim|m)
 sikiyonuz
 s[ii̇]kt[ii̇]r
 yarra[gğ][iı] yediniz
@@ -340,6 +344,7 @@ cancer
 (kill|hang|neck) ?(yo?)?[uyi]r? ?(self|famil[yi]|m[ou]m|mother)
 g?kys
 k y s
+ky5
 nigg?[ae]r
 rap(ed?|e?ing)
 """)

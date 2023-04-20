@@ -4,7 +4,7 @@ import { Prop } from 'common';
 import { NotifCtrl } from './notif';
 import { AnalyseData, Redraw } from '../interfaces';
 import { StudyPracticeCtrl } from './practice/interfaces';
-import { StudyChaptersCtrl } from './studyChapters';
+import StudyChaptersCtrl from './studyChapters';
 import { DescriptionCtrl } from './description';
 import GamebookPlayCtrl from './gamebook/gamebookPlayCtrl';
 import { GamebookOverride } from './gamebook/interfaces';
@@ -232,6 +232,7 @@ export interface ChapterPreview {
   fen: string;
   lastMove?: string;
   playing: boolean;
+  outcome?: '1-0' | '0-1' | '1/2-1/2';
 }
 
 export interface ChapterPreviewPlayer {

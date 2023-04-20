@@ -62,8 +62,6 @@ final class JsonView(isOnline: lila.socket.IsOnline):
 
 object JsonView:
 
-  import Title.given
-
   val nameWrites: Writes[User] = writeAs(_.username)
 
   given lightPerfWrites: OWrites[LightPerf] = OWrites[LightPerf] { l =>
@@ -135,11 +133,6 @@ object JsonView:
     JsObject(onlyPerfs.map { perfType =>
       perfType.key.value -> perfWrites.writes(u.perfs(perfType))
     })
-
-  def ratingMap(u: User): JsObject =
-    Writes
-      .keyMapWrites[Perf.Key, Int, Map]
-      .writes(u.perfs.perfsMap.view.mapValues(_.intRating.value).toMap)
 
   def notes(ns: List[Note])(using lightUser: LightUserApi) =
     lightUser.preloadMany(ns.flatMap(_.userIds).distinct) inject JsArray(
